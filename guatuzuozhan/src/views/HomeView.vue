@@ -1,0 +1,2 @@
+<script setup>import { useAuthStore } from '@/stores/auth';const auth=useAuthStore()</script>
+<template><section class="panel"><p class="eyebrow">COMMAND HUB</p><h1>欢迎回来，{{auth.user?.name}}</h1><p class="muted">职位：{{auth.user?.position}}　部门：{{auth.user?.department?.name||'未分配'}}</p><div class="cards"><div class="card"><small>身份状态</small><h2>已认证</h2></div><div class="card"><small>权限等级</small><h2>{{auth.isAdmin?'系统管理员':'普通用户'}}</h2></div></div></section></template>
