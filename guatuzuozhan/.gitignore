@@ -38,3 +38,40 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 .env
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# MySQL backup and dump files
+*.sql
+*.sql.gz
+
+# Test and coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+# Backend environment file
+backend/.env
