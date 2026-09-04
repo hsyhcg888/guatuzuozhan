@@ -3,7 +3,7 @@ import secrets
 import string
 from io import BytesIO
 from openpyxl import Workbook, load_workbook
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -17,6 +17,11 @@ from .serializers import AdminUserWriteSerializer, DepartmentSerializer, LoginSe
 
 logger = logging.getLogger('user_audit')
 
+class AdminPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 def token_response(user):
     refresh = RefreshToken.for_user(user)
     return {'access': str(refresh.access_token), 'refresh': str(refresh), 'user': UserSerializer(user).data}
@@ -25,8 +30,31 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
         serializer = RegisterSerializer(data=request.data); serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data; data.pop('confirm_password', None); password = data.pop('password')
-        user = User.objects.create_user(password=password, account_status='disabled', register_status='pending', is_system_admin=False, is_deleted=False, **data)
+        validated_data = serializer.validated_data
+        now = timezone.now()
+        user = User(
+            name=validated_data['name'],
+            position=validated_data['position'],
+            department_id=validated_data['department_id'],
+            job_title=validated_data.get('job_title'),
+            responsibility=validated_data.get('responsibility'),
+            is_system_admin=False,
+            account_status='disabled',
+            register_status='pending',
+            reviewer_id=None,
+            reviewed_at=None,
+            review_remark=None,
+            last_login_at=None,
+            is_deleted=False,
+            deleted_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+        user.set_password(validated_data['password'])
+        try:
+            user.save(force_insert=True, using='default')
+        except IntegrityError:
+            return Response({'detail': '该姓名已存在，无法注册'}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'message': '注册申请已提交，请等待系统管理员审核', 'id': user.id}, status=status.HTTP_201_CREATED)
 
 class LoginView(APIView):
@@ -55,7 +83,7 @@ class AdminUsersView(APIView):
         for field in ('name', 'position', 'account_status', 'register_status'):
             if request.query_params.get(field): qs = qs.filter(**{field + '__icontains' if field == 'name' else field: request.query_params[field]})
         if request.query_params.get('department_id'): qs = qs.filter(department_id=request.query_params['department_id'])
-        paginator = PageNumberPagination(); page = paginator.paginate_queryset(qs, request); return paginator.get_paginated_response(UserSerializer(page, many=True).data)
+        paginator = AdminPagination(); page = paginator.paginate_queryset(qs, request); return paginator.get_paginated_response(UserSerializer(page, many=True).data)
     def post(self, request):
         s = AdminUserWriteSerializer(data=request.data); s.is_valid(raise_exception=True); data=s.validated_data; password=data.pop('password', None)
         if not password: return Response({'password': '新增用户必须提供密码'}, status=400)
@@ -98,6 +126,12 @@ class AdminActionView(APIView):
             user.set_password(password); user.updated_at=timezone.now(); user.save(update_fields=['password_hash','updated_at'])
             logger.info('admin_reset_password user=%s by=%s', user.id, request.user.id)
             return Response({'message': '密码已重置', 'temporary_password': password})
+        elif action == 'grant-admin':
+            user.is_system_admin = True
+        elif action == 'revoke-admin':
+            if user.is_system_admin and User.objects.filter(is_system_admin=True, is_deleted=False).count() <= 1:
+                return Response({'detail': '不能取消最后一个系统管理员'}, status=400)
+            user.is_system_admin = False
         else: return Response(status=400)
         user.reviewer_id=request.user.id; user.reviewed_at=timezone.now(); user.updated_at=timezone.now(); user.save(); logger.info('admin_%s user=%s by=%s', action, user.id, request.user.id); return Response(UserSerializer(user).data)
 

@@ -1,6 +1,7 @@
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -31,8 +32,8 @@ class Department(models.Model):
     sort_order = models.IntegerField()
     status = models.IntegerField()
     is_deleted = models.BooleanField()
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
     class Meta:
         managed = False
         db_table = 'departments'
@@ -54,8 +55,8 @@ class User(models.Model):
     last_login_at = models.DateTimeField(null=True, blank=True)
     is_deleted = models.BooleanField()
     deleted_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
     objects = UserManager()
 
     USERNAME_FIELD = 'name'
